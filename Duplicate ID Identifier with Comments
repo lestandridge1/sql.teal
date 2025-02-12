@@ -1,0 +1,37 @@
+SELECT
+  DISTINCT r.internalSupplierId,  -- Selects distinct internal supplier IDs from the `RelationshipSpendLineItems` table.
+  
+  STRING_AGG(DISTINCT ARRAY_TO_STRING(og.domains, "|"), ', ') AS domains_list,  
+  -- Aggregates unique domain values from `OrgUnit` using "|" as a separator within each domain,
+  -- and then joins them together as a comma-separated string.
+
+  COUNT(DISTINCT ARRAY_TO_STRING(og.domains,"|")) AS domains,
+  -- Counts the number of unique domain values after converting them into a string format.
+
+FROM
+  `tealbook-prd.tealbook.RelationshipSpendLineItems` r  
+  -- The main table containing spend-related data.
+
+LEFT JOIN
+  `tealbook-prd.tealbook.OrgUnit` og  
+  -- Left join to bring in organizational unit details.
+
+ON
+  SUBSTR(r.supplier, 9, 16) = SUBSTR(og.__key__.path, 8,16)
+  AND RIGHT(r.supplier, 16) = SUBSTR(og.__key__.path, 37,16)
+  -- Joins `RelationshipSpendLineItems` with `OrgUnit` using a complex key mapping:
+  -- Extracts specific substrings from `r.supplier` and `og.__key__.path` for matching.
+
+WHERE
+  SUBSTR(r.__key__.path, 8,16) = "4789008123035648"
+  AND SUBSTR(r.__key__.path, 37,16) = "5629499534213120"
+  -- Filters records based on specific key values.
+
+GROUP BY 1
+-- Groups the results by `internalSupplierId` (column position 1).
+
+HAVING COUNT(DISTINCT ARRAY_TO_STRING(og.domains,"|")) > 1
+AND STRING_AGG(DISTINCT ARRAY_TO_STRING(og.domains, "|")) LIKE '%,%'
+-- Ensures that only suppliers associated with more than one unique domain are included.
+-- The LIKE condition checks if there is at least one comma in the aggregated domain list, 
+-- meaning multiple domains exist.
