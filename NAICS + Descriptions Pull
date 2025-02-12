@@ -1,0 +1,62 @@
+SELECT
+  DISTINCT (r.internalSupplierId),  
+  -- Selects distinct internal supplier IDs from the `RelationshipSpendLineItems` table.
+
+  ARRAY_TO_STRING(og.domains, "|") AS domains,  
+  -- Converts the `domains` array into a string separated by "|".
+
+  og.name,  
+  -- Retrieves the name of the supplier from the `OrgUnit` table.
+
+  og.supplier.locations[SAFE_OFFSET(0)].address AS Primary_Address,  
+  -- Extracts the primary address from the supplier's locations array (first element, if available).
+
+  r.location.address AS address,  
+  -- Retrieves the address of the transaction from the `RelationshipSpendLineItems` table.
+
+  ARRAY_TO_STRING(
+    ARRAY_AGG(IF(cc.schema = 'NAICS', cc.code, NULL) IGNORE NULLS), '|'
+  ) AS NAICS,  
+  -- Aggregates all NAICS classification codes for the supplier, separating them with "|".
+  
+  ARRAY_TO_STRING(
+    ARRAY_AGG(IF(cc.schema = 'NAICS', ns.description, NULL) IGNORE NULLS), '|'
+  ) AS NAICS_Description,  
+  -- Aggregates all NAICS descriptions matching the classification codes.
+
+  SUBSTR(r.__key__.path, 8,16) AS OrgID,  
+  -- Extracts a portion of the key path to represent the organization ID.
+
+  SUBSTR(r.__key__.path, 37,16) AS OrgUnitID  
+  -- Extracts a portion of the key path to represent the organization unit ID.
+
+FROM
+  `tealbook-prd.tealbook.RelationshipSpendLineItems` r  
+  -- Main table containing spend transactions.
+
+LEFT JOIN
+  `tealbook-prd.tealbook.OrgUnit` og  
+  -- Joins to retrieve supplier information.
+
+ON
+  SUBSTR(r.supplier, 9, 16) = SUBSTR(og.__key__.path, 8, 16)
+  AND RIGHT(r.supplier, 16) = SUBSTR(og.__key__.path, 37, 16)  
+  -- Matches supplier information by extracting and comparing substrings.
+
+LEFT JOIN UNNEST(og.supplier.classificationCodes) AS cc  
+  -- Unnests the classification codes array for easier filtering.
+
+LEFT JOIN 
+  `tealbook-test.tealbook.NaicsStandard` ns  
+ON 
+  cc.code = ns.code  
+  -- Joins to retrieve the NAICS code descriptions.
+
+WHERE
+  -- Filters by specific organization ID and unit ID.
+  SUBSTR(r.__key__.path, 8, 16) = "4953680920060672"
+  AND SUBSTR(r.__key__.path, 37, 16) = "5629490034213120"
+
+GROUP BY 
+  r.internalSupplierId, domains, og.name, Primary_Address, address, OrgID, OrgUnitID;  
+  -- Groups the results by key supplier attributes to ensure correct aggregation.
