@@ -1,0 +1,32 @@
+SELECT 
+  label,  
+  -- Retrieves the event label (e.g., "searchSuggest").
+
+  supplier,  
+  -- Extracts supplier ID from the UNNEST operation.
+
+  created.date,  
+  -- Retrieves the exact date when the search event occurred.
+
+  COUNT(*) OVER (PARTITION BY supplier) AS supplier_frequency  
+  -- Uses a window function to count how many times each supplier appears in searches.
+  -- This provides the frequency per supplier without needing a separate GROUP BY.
+
+FROM `tealbook-prd.tealbook.Stat`,  
+-- Main table containing statistics related to supplier searches.
+
+UNNEST(suppliers) AS supplier  
+-- Expands the `suppliers` array into individual rows, making it possible to count occurrences.
+
+WHERE 
+  label = "searchSuggest"  
+  -- Filters for events related to supplier search suggestions.
+
+  AND DATE(created.date) BETWEEN "2024-01-01" AND "2024-01-31"  
+  -- Restricts data to a specific date range (January 2024).
+
+ORDER BY supplier_frequency DESC, created.date  
+-- Sorts first by the highest supplier search frequency, then by date.
+
+LIMIT 1000;  
+-- Limits the output to 1,000 rows.
