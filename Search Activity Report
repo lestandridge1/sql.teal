@@ -1,0 +1,76 @@
+WITH SupplierCounts AS (
+  -- Creates a temporary table (Common Table Expression) that calculates supplier search frequency per month.
+
+  SELECT 
+    label,  
+    -- Retrieves the event label (e.g., "searchSuggest").
+
+    supplier,  
+    -- Extracts supplier ID from the UNNEST operation.
+
+    FORMAT_DATE('%m-%Y', DATE(created.date)) AS month_year,  
+    -- Converts the `created.date` field into "MM-YYYY" format for grouping by month.
+
+    COUNT(*) AS supplier_frequency  
+    -- Counts how many times each supplier appears in searches per month.
+
+  FROM `tealbook-prd.tealbook.Stat`,  
+  -- Main table containing statistics related to supplier searches.
+
+  UNNEST(suppliers) AS supplier  
+  -- Expands the `suppliers` array into individual rows, making it possible to count occurrences.
+
+  WHERE 
+    label = "searchSuggest"  
+    -- Filters for events related to supplier search suggestions.
+
+    AND DATE(created.date) BETWEEN "2024-01-01" AND "2025-01-31"  
+    -- Restricts data to a specific date range.
+
+    AND created.user IN UNNEST([
+      "User-5308612192763904-5629499534213120-4576696857133056",
+      "User-5308612192763904-5629499534213120-5946052127817728",
+      "User-5308612192763904-5629499534213120-4687354687455232",
+      "User-5308612192763904-5629499534213120-5868785263509504"
+    ])  
+    -- Filters searches performed by a specific set of users.
+
+  GROUP BY label, supplier, month_year  
+  -- Groups results by event label, supplier ID, and formatted month-year.
+)
+
+SELECT 
+  sc.label,  
+  -- Retrieves the event label.
+
+  sc.supplier,  
+  -- Retrieves the supplier ID.
+
+  sc.month_year,  
+  -- Retrieves the month-year of the search event.
+
+  sc.supplier_frequency,  
+  -- Retrieves the count of searches per supplier per month.
+
+  og.name  
+  -- Retrieves the supplier's name from the `OrgUnit` table.
+
+FROM SupplierCounts sc  
+-- Uses the CTE (SupplierCounts) as the source.
+
+LEFT JOIN `tealbook-prd.tealbook.OrgUnit` og  
+-- Joins to get additional supplier details.
+
+ON sc.supplier = CONCAT(
+  "OrgUnit-",
+  SUBSTR(og.__key__.path, 8, 16), 
+  "-",
+  SUBSTR(og.__key__.path, 37, 16)
+)  
+-- Matches the supplier ID format in `SupplierCounts` with the `OrgUnit` table key structure.
+
+ORDER BY sc.month_year, sc.supplier_frequency DESC  
+-- Sorts by month first, then by search frequency in descending order.
+
+LIMIT 50000;  
+-- Limits the output to 50,000 rows.
