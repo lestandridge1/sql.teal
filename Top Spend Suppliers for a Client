@@ -1,0 +1,44 @@
+SELECT
+  DISTINCT(r.internalSupplierId),  
+  -- Selects unique supplier IDs from the `RelationshipSpendLineItems` table.
+
+  ARRAY_TO_STRING(og.domains, "|") AS domains,  
+  -- Converts the `domains` array into a string separated by "|".
+
+  og.name,  
+  -- Retrieves the supplier's name from the `OrgUnit` table.
+
+  og.supplier.locations[SAFE_OFFSET(0)].address AS Primary_Address,  
+  -- Extracts the primary address from the supplier's locations array (first element, if available).
+
+  SUM(IFNULL(r.amount.float, r.amount.integer)) AS spend,  
+  -- Calculates the total spend by summing up the amount values.
+  -- Uses IFNULL to handle cases where the amount is stored as a float or an integer.
+
+  SUBSTR(og.__key__.path, 8,16) AS OrgID,  
+  -- Extracts a portion of the key path to represent the organization ID.
+
+  SUBSTR(og.__key__.path, 37,16) AS OrgUnitID  
+  -- Extracts a portion of the key path to represent the organization unit ID.
+
+FROM
+  `tealbook-prd.tealbook.RelationshipSpendLineItems` r  
+  -- Main table containing spend transactions.
+
+LEFT JOIN
+  `tealbook-prd.tealbook.OrgUnit` og  
+  -- Joins to retrieve supplier information.
+
+ON
+  SUBSTR(r.supplier, 9, 16) = SUBSTR(og.__key__.path, 8, 16)
+  AND RIGHT(r.supplier, 16) = SUBSTR(og.__key__.path, 37, 16)  
+  -- Matches supplier information by extracting and comparing substrings.
+
+WHERE
+  -- Filters records by specific organization ID and unit ID.
+  SUBSTR(r.__key__.path, 8, 16) = "5355600000936960"
+  AND SUBSTR(r.__key__.path, 37, 16) = "5629400004213120"
+
+GROUP BY 
+  r.internalSupplierId, domains, og.name, Primary_Address, OrgID, OrgUnitID;  
+  -- Groups the results by supplier ID and related attributes for aggregation.
