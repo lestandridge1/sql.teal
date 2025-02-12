@@ -1,0 +1,42 @@
+SELECT
+  og.__key__.path AS BuyerKeyPath,  -- Retrieves the unique key path for each buyer organization unit.
+  og.name AS BuyerName,  -- Retrieves the name of the buyer organization unit.
+
+  SUM(IFNULL(r.amount.float, IFNULL(r.amount.integer, 0))) AS total_spend_2024  
+  -- Calculates the total spend for 2024 by summing up the `amount` field.
+  -- Uses IFNULL to handle cases where the amount is stored as a float or an integer, defaulting to 0 if both are NULL.
+
+FROM
+  `tealbook-prd.tealbook.RelationshipSpendLineItems` r  
+  -- Main table containing spend-related data.
+
+LEFT JOIN
+  `tealbook-prd.tealbook.OrgUnit` og  
+  -- Left join to bring in buyer organization details.
+
+ON
+  SUBSTR(og.__key__.path, 8, 16) = SUBSTR(r.__key__.path, 8, 16)
+  AND SUBSTR(og.__key__.path, 37, 16) = SUBSTR(r.__key__.path, 37, 16)
+  -- Joins `OrgUnit` with `RelationshipSpendLineItems` using specific substrings from `__key__.path`.
+
+WHERE
+  SAFE.PARSE_DATE('%Y-%m-%d', SUBSTR(r.spendDate, 1, 10)) IS NOT NULL
+  -- Ensures the spendDate is in a valid date format before applying the date filter.
+
+  AND DATE(SUBSTR(r.spendDate, 1, 10)) BETWEEN "2024-01-01" AND "2024-12-31"
+  -- Filters for transactions that occurred within the year 2024.
+
+  AND CONCAT("OrgUnit-", SUBSTR(og.__key__.path, 8, 16), "-", SUBSTR(og.__key__.path, 37, 16)) IN (
+    "OrgUnit-6600343934730240-5629499534213120",
+    "OrgUnit-5020957764747264-5629499534213120",
+    "OrgUnit-6066236907585536-5629499534213120"
+  )
+  -- Filters results to only include specific organization units based on a dynamically constructed identifier.
+
+GROUP BY
+  BuyerKeyPath, BuyerName  
+  -- Groups the results by `BuyerKeyPath` and `BuyerName` to aggregate spend at the buyer level.
+
+ORDER BY
+  total_spend_2024 DESC;  
+  -- Orders the results in descending order of total spend in 2024.
