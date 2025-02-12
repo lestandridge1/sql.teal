@@ -1,0 +1,52 @@
+SELECT
+  CONCAT("OrgUnit-", SUBSTR(r.__key__.path, 8, 16), "-", SUBSTR(r.__key__.path, 37, 16)) AS Client_OrgID,
+  -- Constructs a unique identifier for the client organization using extracted substrings from `r.__key__.path`.
+
+  og2.name AS Client_OrgName,  
+  -- Retrieves the name of the client organization (from `og2`) based on `r.__key__.path`.
+
+  og.name AS supplier_name,  
+  -- Retrieves the name of the supplier from the `OrgUnit` table (`og`).
+
+  ARRAY_TO_STRING(og.domains, "|") AS supplier_domain,  
+  -- Converts the supplier's domain list from an array to a string, separating values with "|".
+
+  SUM(IFNULL(r.amount.float, IFNULL(r.amount.integer, 0))) AS TotalAmount  
+  -- Calculates the total transaction amount, handling cases where the amount is stored as float or integer.
+
+FROM
+  `tealbook-prd.tealbook.RelationshipSpendLineItems` r  
+  -- Main table containing spend transactions.
+
+LEFT JOIN
+  `tealbook-prd.tealbook.OrgUnit` og  
+  -- Joins to retrieve supplier information.
+
+ON
+  SUBSTR(r.supplier, 9, 16) = SUBSTR(og.__key__.path, 8, 16)
+  AND RIGHT(r.supplier, 16) = SUBSTR(og.__key__.path, 37, 16)
+  -- Matches supplier information by extracting relevant substrings from `r.supplier` and `og.__key__.path`.
+
+LEFT JOIN
+  `tealbook-prd.tealbook.OrgUnit` og2  
+  -- Additional join to get the client organization name.
+
+ON
+  SUBSTR(r.__key__.path, 8, 16) = SUBSTR(og2.__key__.path, 8, 16)
+  AND SUBSTR(r.__key__.path, 37, 16) = SUBSTR(og2.__key__.path, 37, 16)
+  -- Matches client organization information by extracting and comparing substrings from `r.__key__.path` and `og2.__key__.path`.
+
+WHERE
+  r.supplier = "OrgUnit-4522800039416832-5629499004213120"  
+  -- Filters results to only include transactions related to a specific supplier profile ID.
+
+  AND IFNULL(r.amount.float, IFNULL(r.amount.integer, 0)) > 0  
+  -- Ensures only records with a positive transaction amount are included.
+
+GROUP BY
+  Client_OrgID, Client_OrgName, supplier_name, supplier_domain  
+  -- Groups the results by client organization ID, client name, supplier name, and supplier domain.
+
+ORDER BY
+  Client_OrgID;  
+  -- Orders the results by client organization ID for better readability.
